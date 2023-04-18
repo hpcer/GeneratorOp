@@ -3,6 +3,9 @@ import torch.nn as nn
 import numpy as np
 import argparse
 
+from GenRandom import GeneratorRandom
+
+
 class Model(nn.Module):
     def __init__(self, args):
         super(Model,self).__init__()
@@ -11,17 +14,18 @@ class Model(nn.Module):
         kernel_size = (args['kH'], args['kW'])
         stride = (args['sH'], args['sW'])
         padding = 'same' if (args['padType'] == 0) else 'valid'
-        self.Conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias = True if (args['hasBias'] == 1) else False)
+        self.Conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, bias = True if (args['hasBias'] == 1) else False)
     def forward(self, x):
         x = self.Conv2d(x)
         return x
 
 def CreateConv2D(args):
     model=Model(args)
-    model.eval() 
-
-    x = torch.randn((args['batch'], args['IC'], args['iH'], args['iW']))
+    
+    x = torch.from_numpy(GeneratorRandom(args))
     y = model(x)
+
+    # model.eval() 
 
     torch.onnx.export(model, # 搭建的网络
         x, # 输入张量
@@ -32,7 +36,7 @@ def CreateConv2D(args):
     )
 
     np.save("Conv2D_Input.npy", x.numpy())
-    np.save("Conv2D_Output.npy", y.numpy())
+    np.save("Conv2D_Output.npy", y.detach().numpy())
 
 parser = argparse.ArgumentParser()
 parser.add_argument('data', nargs='+', type=int, help='input data')
