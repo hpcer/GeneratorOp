@@ -1,32 +1,49 @@
 import torch
 import torch.nn as nn
 import numpy as np
-
-in_channels = 16
-in_h = 486
-in_w = 864
-
-out_channels = 16
-
-kernel_size = (3, 3)
+import argparse
 
 class Model(nn.Module):
-    def __init__(self):
+    def __init__(self, args):
         super(Model,self).__init__()
-        self.Conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, bias = True)
+        in_channels = args['IC']
+        out_channels = args['OC']
+        kernel_size = (args['kH'], args['kW'])
+        stride = (args['sH'], args['sW'])
+        padding = 'same' if (args['padType'] == 0) else 'valid'
+        self.Conv2d = nn.Conv2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, bias = True if (args['hasBias'] == 1) else False)
     def forward(self, x):
         x = self.Conv2d(x)
         return x
 
-model=Model()
-model.eval() 
+def CreateConv2D(args):
+    model=Model(args)
+    model.eval() 
 
-x=torch.randn((1, in_channels, in_h, in_w))
+    x = torch.randn((args['batch'], args['IC'], args['iH'], args['iW']))
+    y = model(x)
 
-torch.onnx.export(model, # 搭建的网络
-    x, # 输入张量
-    'Conv2D.onnx', # 输出模型名称
-    input_names=["input"], # 输入命名
-    output_names=["output"], # 输出命名
-    dynamic_axes={'input':{0:'batch'}, 'output':{0:'batch'}}  # 动态轴
-)
+    torch.onnx.export(model, # 搭建的网络
+        x, # 输入张量
+        'Conv2D.onnx', # 输出模型名称
+        input_names=["input"], # 输入命名
+        output_names=["output"], # 输出命名
+        dynamic_axes={'input':{0:'batch'}, 'output':{0:'batch'}}  # 动态轴
+    )
+
+    np.save("Conv2D_Input.npy", x.numpy())
+    np.save("Conv2D_Output.npy", y.numpy())
+
+parser = argparse.ArgumentParser()
+parser.add_argument('data', nargs='+', type=int, help='input data')
+args = parser.parse_args()
+
+conv2DArgsDic={'IC': 0, 'iH': 0, 'iW': 0, 'OC': 0, 'kH': 0, 'kW': 0, 'sH': 0, 'sW': 0, 'hasBias': 0, 'batch': 1, 'dH': 1, 'dW': 1, 'group': 1, 'padType': 0}
+
+conv2DArgsList = list(conv2DArgsDic.keys())[:len(args.data)]
+
+tmpConv2DArgs = dict(zip(conv2DArgsList, args.data))
+
+conv2DArgsDic = {**conv2DArgsDic, **tmpConv2DArgs}
+
+CreateConv2D(conv2DArgsDic)
